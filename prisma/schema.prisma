@@ -78,3 +78,13 @@ model Translation {
   
   @@unique([langCode, key])
 }
+
+// OTP VE DOĞRULAMA KODLARI
+model VerificationToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   // 6 haneli OTP kodu
+  expires   DateTime // 10 dakikalık geçerlilik süresi
+  
+  @@unique([email, token])
+}
