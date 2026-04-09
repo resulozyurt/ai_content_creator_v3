@@ -1,17 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { userAuthSchema, type UserAuthInput } from "@/lib/validations/auth";
-import { initiateRegistration } from "@/server/actions/auth.actions";
+import { initiateRegistration, verifyOTPAndCreateUser } from "@/server/actions/auth.actions";
 import { Loader2, ArrowRight, CheckCircle2 } from "lucide-react";
 
 export default function RegisterPage() {
+    const router = useRouter();
     const [step, setStep] = useState<1 | 2>(1);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [emailForOTP, setEmailForOTP] = useState("");
+    const [otpValue, setOtpValue] = useState("");
 
     const {
         register,
@@ -29,8 +32,6 @@ export default function RegisterPage() {
 
         if (result.success) {
             setEmailForOTP(data.email);
-            // Not: TempHash'i burada state'te veya local storage'da tutabiliriz
-            // OTP doğrulaması yaparken göndermek üzere.
             sessionStorage.setItem("tempHash", result.tempHash as string);
             setStep(2);
         } else {
@@ -42,8 +43,33 @@ export default function RegisterPage() {
 
     const handleVerifyOTP = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        // OTP doğrulama işlemi burada yapılacak
-        // Sonraki aşamada yazacağız.
+        setIsLoading(true);
+        setError(null);
+
+        if (otpValue.length !== 6) {
+            setError("Please enter a valid 6-digit code.");
+            setIsLoading(false);
+            return;
+        }
+
+        const tempHash = sessionStorage.getItem("tempHash");
+        if (!tempHash) {
+            setError("Session expired. Please try registering again.");
+            setStep(1);
+            setIsLoading(false);
+            return;
+        }
+
+        const result = await verifyOTPAndCreateUser(emailForOTP, otpValue, tempHash);
+
+        if (result.success) {
+            sessionStorage.removeItem("tempHash");
+            router.push("/login?registered=true"); // Redirect to login
+        } else {
+            setError(result.error || "Verification failed.");
+        }
+
+        setIsLoading(false);
     };
 
     return (
@@ -117,6 +143,8 @@ export default function RegisterPage() {
                             id="otp"
                             type="text"
                             maxLength={6}
+                            value={otpValue}
+                            onChange={(e) => setOtpValue(e.target.value)}
                             placeholder="123456"
                             className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-center text-lg tracking-widest ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         />

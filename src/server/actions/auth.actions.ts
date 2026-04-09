@@ -68,3 +68,39 @@ export const initiateRegistration = async (data: UserAuthInput) => {
     return { success: false, error: "An unexpected error occurred." };
   }
 };
+
+export const verifyOTPAndCreateUser = async (email: string, token: string, passwordHash: string) => {
+  try {
+    // 1. Check if the token exists and matches the email
+    const verificationRecord = await prisma.verificationToken.findFirst({
+      where: { email, token },
+    });
+
+    if (!verificationRecord) {
+      return { success: false, error: "Invalid verification code." };
+    }
+
+    // 2. Check if the token is expired
+    if (new Date() > verificationRecord.expires) {
+      return { success: false, error: "Verification code has expired. Please register again." };
+    }
+
+    // 3. Create the user in the database
+    await prisma.user.create({
+      data: {
+        email,
+        passwordHash, // This is the temporary hash we passed earlier
+      },
+    });
+
+    // 4. Delete the used token for security
+    await prisma.verificationToken.delete({
+      where: { id: verificationRecord.id },
+    });
+
+    return { success: true, message: "Account created successfully." };
+  } catch (error) {
+    console.error("OTP Verification Error:", error);
+    return { success: false, error: "Failed to verify account." };
+  }
+};
