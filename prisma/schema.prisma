@@ -1,13 +1,81 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// KULLANICI SİSTEMİ
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String    // bcrypt ile şifrelenecek
+  role          Role      @default(EDITOR)
+  credits       Int       @default(100) // İçerik üretim bakiyesi
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  contents      Content[]
+  wpCredentials WPCredential[]
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+// WORDPRESS BİLGİLERİ (Her kullanıcı için izole)
+model WPCredential {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  siteUrl     String   // Örn: https://example.com
+  wpUsername  String
+  appPassword String   // AES-256 ile şifrelenip DB'de saklanacak!
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, siteUrl])
+}
+
+// İÇERİK YÖNETİMİ
+model Content {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title           String?
+  targetKeyword   String
+  bodyText        String?  @db.Text // ProseMirror'dan gelen HTML/JSON içeriği
+  
+  language        String   @default("en-US") // Üretim dili
+  aiModel         String   @default("claude-3-opus") // Kullanılan model
+  
+  // SEO & Rank Math verileri
+  metaTitle       String?
+  metaDescription String?
+  
+  status          ContentStatus @default(DRAFT)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+enum ContentStatus {
+  DRAFT
+  GENERATING
+  COMPLETED
+  PUBLISHED_TO_WP
+}
+
+// ÇOKLU DİL (i18n) ARAYÜZ ÇEVİRİLERİ
+model Translation {
+  id        String   @id @default(cuid())
+  langCode  String   // Örn: 'en-US', 'tr-TR'
+  key       String   // Örn: 'btn_new_content'
+  value     String   // Örn: 'New Content', 'Yeni İçerik'
+  
+  @@unique([langCode, key])
 }
