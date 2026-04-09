@@ -6,13 +6,13 @@ datasource db {
   provider = "postgresql"
 }
 
-// KULLANICI SİSTEMİ
+// USER SYSTEM
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
-  passwordHash  String    // bcrypt ile şifrelenecek
+  passwordHash  String    // To be hashed with bcrypt
   role          Role      @default(EDITOR)
-  credits       Int       @default(100) // İçerik üretim bakiyesi
+  credits       Int       @default(100) // Content generation credit balance
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -26,21 +26,21 @@ enum Role {
   VIEWER
 }
 
-// WORDPRESS BİLGİLERİ (Her kullanıcı için izole)
+// WORDPRESS CREDENTIALS (Isolated per user)
 model WPCredential {
   id          String   @id @default(cuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  siteUrl     String   // Örn: https://example.com
+  siteUrl     String   // e.g., https://example.com
   wpUsername  String
-  appPassword String   // AES-256 ile şifrelenip DB'de saklanacak!
+  appPassword String   // To be encrypted with AES-256 before DB storage!
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@unique([userId, siteUrl])
 }
 
-// İÇERİK YÖNETİMİ
+// CONTENT MANAGEMENT
 model Content {
   id              String   @id @default(cuid())
   userId          String
@@ -48,12 +48,17 @@ model Content {
   
   title           String?
   targetKeyword   String
-  bodyText        String?  @db.Text // ProseMirror'dan gelen HTML/JSON içeriği
+  bodyText        String?  @db.Text
   
-  language        String   @default("en-US") // Üretim dili
-  aiModel         String   @default("claude-3-opus") // Kullanılan model
+  language        String   @default("en-US")
+  aiModel         String   @default("claude-3-opus")
   
-  // SEO & Rank Math verileri
+  // Content Configuration Fields
+  contentType     String   @default("blog-post")
+  writingGoal     String   @default("teaching")
+  contentDepth    String   @default("beginner")
+  targetWordCount Int      @default(2000)
+  
   metaTitle       String?
   metaDescription String?
   
@@ -69,22 +74,22 @@ enum ContentStatus {
   PUBLISHED_TO_WP
 }
 
-// ÇOKLU DİL (i18n) ARAYÜZ ÇEVİRİLERİ
+// MULTILINGUAL (i18n) UI TRANSLATIONS
 model Translation {
   id        String   @id @default(cuid())
-  langCode  String   // Örn: 'en-US', 'tr-TR'
-  key       String   // Örn: 'btn_new_content'
-  value     String   // Örn: 'New Content', 'Yeni İçerik'
+  langCode  String   // e.g., 'en-US', 'es-ES'
+  key       String   // e.g., 'btn_new_content'
+  value     String   // e.g., 'New Content'
   
   @@unique([langCode, key])
 }
 
-// OTP VE DOĞRULAMA KODLARI
+// OTP AND VERIFICATION TOKENS
 model VerificationToken {
   id        String   @id @default(cuid())
   email     String
-  token     String   // 6 haneli OTP kodu
-  expires   DateTime // 10 dakikalık geçerlilik süresi
+  token     String   // 6-digit OTP code
+  expires   DateTime // 10-minute expiration time
   
   @@unique([email, token])
 }
